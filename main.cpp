@@ -25,23 +25,29 @@ struct CompressedExternalIdTableBase {
   }
 };
 
-// template <typename T>
-// concept CompressionWrapper = requires(const T& t) {
-//   typename T::Decoder;
-//   // Return the number of decoders that are stored.
-//   { t.numDecoders() } -> std::same_as<size_t>;
-//   // Decompress the given string, use the Decoder specified by the second
-//   // argument.
-//   { t.decompress(std::string_view{}, size_t{0}) } -> std::same_as<std::string>;
-//   // Compress all the strings and return the strings together with a `Decoder`
-//   // that can be used to decompress the strings again.
-//   {
-//     T::compressAll(std::vector<std::string>{})
-//   } -> BulkResultForDecoder<typename T::Decoder>;
-//   requires(std::constructible_from<T, std::vector<typename T::Decoder>>);
-// };
 
-struct CompressionWrapper {
+template <typename T, typename Decoder>
+concept BulkResultForDecoder = requires {
+  std::constructible_from<T, std::vector<Decoder>>;
+};
+
+template <typename T>
+concept CompressionWrapper = requires(const T& t) {
+  typename T::Decoder;
+  // Return the number of decoders that are stored.
+  { t.numDecoders() } -> std::same_as<size_t>;
+  // Decompress the given string, use the Decoder specified by the second
+  // argument.
+  { t.decompress(std::string_view{}, size_t{0}) } -> std::same_as<std::string>;
+  // Compress all the strings and return the strings together with a `Decoder`
+  // that can be used to decompress the strings again.
+  {
+    T::compressAll(std::vector<std::string>{})
+  } -> BulkResultForDecoder<typename T::Decoder>;
+  requires(std::constructible_from<T, std::vector<typename T::Decoder>>);
+};
+
+struct FsstSquaredCompressionWrapper {
   using BulkResult =
       std::tuple<std::string, std::vector<std::string_view>>;
   static BulkResult compressAll() {
@@ -58,7 +64,7 @@ struct DiskWriter {
   void finishBlock() {
 
     auto compressAndWrite = [this, isExternalBuffer = std::move(isExternalBuffer_)]() mutable {
-        auto bulkResult = CompressionWrapper::compressAll();
+        auto bulkResult = FsstSquaredCompressionWrapper::compressAll();
         auto& [buffer, views] = bulkResult;
 
         size_t i = 0;
