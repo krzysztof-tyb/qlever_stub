@@ -13,13 +13,23 @@ struct IdTableStatic {
   size_t cols = NumStaticCols;
 };
 
+template <typename B, typename R>
+CPP_requires(CanBePushed_, requires(B& currentBlock_, const R& row) (
+  currentBlock_.push_back(row)
+));
+
+template <typename B, typename R>
+CPP_concept CanBePushed = CPP_requires_ref(CanBePushed_, B, R);
+
+
 template <size_t NumStaticCols>
 struct CompressedExternalIdTableBase {
   IdTableStatic<NumStaticCols> currentBlock_;
 
   // Add a single row to the input. The type of `row` needs to be something that
   // can be `push_back`ed to a `IdTable`.
-  void push(const auto& row) requires requires { currentBlock_.push_back(row); }
+  CPP_template_def(typename R)(requires CanBePushed<IdTableStatic<NumStaticCols>, R>)
+  void push(const R& row)
   {
     currentBlock_.push_back(row);
   }
@@ -55,6 +65,11 @@ struct FsstSquaredCompressionWrapper {
   }
 };
 
+template <typename Writer, typename Word>
+CPP_requires(WithTwoArgs_, requires(Writer& underlyingWriter_, Word& word) (
+  underlyingWriter_(word, false)
+));
+
 template <typename UnderlyingVocabulary>
 struct DiskWriter {
   typename UnderlyingVocabulary::WordWriter underlyingWriter_;
@@ -69,7 +84,7 @@ struct DiskWriter {
 
         size_t i = 0;
         for (auto& word : views) {
-          if constexpr (requires() { underlyingWriter_(word, false); }) {
+          if constexpr (CPP_requires_ref(WithTwoArgs_, typename UnderlyingVocabulary::WordWriter, decltype(word))) {
             underlyingWriter_(word, isExternalBuffer.at(i));
             ++i;
           } else {
@@ -83,7 +98,7 @@ struct DiskWriter {
 };
 
 
-int main() {
 
+int main() {
     return 0;
 }
