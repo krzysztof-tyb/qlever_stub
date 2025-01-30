@@ -108,7 +108,20 @@ struct DiskWriter {
 
 };
 
+template <typename T, typename ColumnStorage = std::vector<T>>
+struct IdTable {
+  
+  using Allocator = decltype(std::declval<ColumnStorage&>().get_allocator());
 
+  static constexpr bool columnsAreAllocatable =
+      std::is_constructible_v<ColumnStorage, size_t, Allocator>;
+
+  CPP_template(typename A = Allocator)(requires columnsAreAllocatable CPP_and std::is_default_constructible_v<A>)
+  explicit IdTable(size_t numColumns)
+  {}
+
+
+};
 
 int main() {
     return 0;
