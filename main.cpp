@@ -8,6 +8,18 @@
 // #include "templates.h"
 
 
+template <typename T, typename U>
+constexpr static bool isSimilar =
+    std::is_same_v<std::decay_t<T>, std::decay_t<U>>;
+
+/// A concept for similarity
+template <typename T, typename U>
+CPP_concept SimilarTo = isSimilar<T, U>;
+
+/// True iff `T` is similar (see above) to any of the `Ts...`.
+template <typename T, typename... Ts>
+CPP_concept SimilarToAny = (... || isSimilar<T, Ts>);
+
 template <size_t NumStaticCols>
 struct IdTableStatic {
   size_t cols = NumStaticCols;
@@ -35,27 +47,26 @@ struct CompressedExternalIdTableBase {
   }
 };
 
+template <typename T, typename Decoder>
+CPP_requires(BulkResultForDecoder_, requires(T t) (
+  std::tuple_size_v<T> == 3,
+  SimilarToAny<decltype(std::get<1>(t)), std::vector<std::string_view>,std::vector<std::string>>,
+  SimilarTo<decltype(std::get<2>(t)), Decoder>
+));
 
 template <typename T, typename Decoder>
-concept BulkResultForDecoder = requires {
-  std::constructible_from<T, std::vector<Decoder>>;
-};
+CPP_concept BulkResultForDecoder = CPP_requires_ref(BulkResultForDecoder_, T, Decoder);
 
 template <typename T>
-concept CompressionWrapper = requires(const T& t) {
-  typename T::Decoder;
-  // Return the number of decoders that are stored.
-  { t.numDecoders() } -> std::same_as<size_t>;
-  // Decompress the given string, use the Decoder specified by the second
-  // argument.
-  { t.decompress(std::string_view{}, size_t{0}) } -> std::same_as<std::string>;
-  // Compress all the strings and return the strings together with a `Decoder`
-  // that can be used to decompress the strings again.
-  {
-    T::compressAll(std::vector<std::string>{})
-  } -> BulkResultForDecoder<typename T::Decoder>;
-  requires(std::constructible_from<T, std::vector<typename T::Decoder>>);
-};
+CPP_requires(CompressionWrapper_, requires(const T&t) (
+  concepts::same_as<decltype(t.numDecoders()), size_t>,
+  concepts::same_as<decltype(t.decompress(std::string_view{}, size_t{0})), std::string>,
+  BulkResultForDecoder<decltype(T::compressAll(std::vector<std::string>{})), typename T::Decoder>,
+  concepts::constructible_from<T, std::vector<typename T::Decoder>>
+));
+
+template <typename T>
+CPP_concept CompressionWrapper = CPP_requires_ref(CompressionWrapper_, T);
 
 struct FsstSquaredCompressionWrapper {
   using BulkResult =
